@@ -1,0 +1,67 @@
+name: build-34296
+
+# Fork-only workflow: builds aws-cdk-lib (with its workspace dependencies) and runs the
+# aws-ec2 checks for the #34296 change. Never meant to be merged upstream.
+
+on:
+  push:
+    branches:
+      - ci-34296
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-34296
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.repository != 'aws/aws-cdk'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
+      JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+      PR_BUILD: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: yarn install --frozen-lockfile
+
+      - name: Build aws-cdk-lib and its workspace dependencies
+        run: npx lerna run build --scope=aws-cdk-lib --stream --skip-nx-cache
+
+      - name: Unit tests for the Subnet change
+        working-directory: packages/aws-cdk-lib
+        run: npx jest aws-ec2/test/vpc.test.ts
+
+      - name: Unit tests for all of aws-ec2
+        working-directory: packages/aws-cdk-lib
+        run: yarn test aws-ec2
+
+      - name: API compatibility (jsii-diff)
+        working-directory: packages/aws-cdk-lib
+        run: yarn compat
+
+      - name: Rosetta (README snippets must compile)
+        working-directory: packages/aws-cdk-lib
+        run: yarn rosetta:extract --strict
+
+      - name: Files changed by the build
+        run: git status --short | head -50
