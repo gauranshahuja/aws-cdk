@@ -49,11 +49,11 @@ jobs:
 
       - name: Unit tests for the Subnet change
         working-directory: packages/aws-cdk-lib
-        run: npx jest aws-ec2/test/vpc.test.ts
+        run: npx jest aws-ec2/test/vpc.test.ts --coverage=false
 
       - name: Unit tests for all of aws-ec2
         working-directory: packages/aws-cdk-lib
-        run: yarn test aws-ec2
+        run: yarn test aws-ec2 --coverage=false
 
       - name: API compatibility (jsii-diff)
         working-directory: packages/aws-cdk-lib
