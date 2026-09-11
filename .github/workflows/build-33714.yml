@@ -1,0 +1,70 @@
+name: build-33714
+
+# Fork-only workflow: builds aws-cdk-lib and runs the aws-appsync checks for the #33714 change.
+# Never meant to be merged upstream.
+
+on:
+  push:
+    branches:
+      - ci-33714
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-33714
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.repository != 'aws/aws-cdk'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
+      JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION: "true"
+      PR_BUILD: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: yarn install --frozen-lockfile
+
+      - name: Build aws-cdk-lib and its workspace dependencies
+        run: npx lerna run build --scope=aws-cdk-lib --stream --skip-nx-cache
+
+      - name: Unit tests for the Event API change
+        working-directory: packages/aws-cdk-lib
+        run: npx jest aws-appsync/test/appsync-eventapi.test.ts --coverage=false
+
+      - name: Unit tests for all of aws-appsync
+        working-directory: packages/aws-cdk-lib
+        run: yarn test aws-appsync --coverage=false
+
+      - name: API compatibility (jsii-diff)
+        working-directory: packages/aws-cdk-lib
+        run: yarn compat
+
+      - name: Rosetta (README snippets must compile)
+        working-directory: packages/aws-cdk-lib
+        run: yarn rosetta:extract --strict
+
+      - name: Build framework-integ (type-checks the integ test)
+        run: npx lerna run build --scope=@aws-cdk-testing/framework-integ --stream
+
+      - name: Files changed by the build
+        run: git status --short | head -50
