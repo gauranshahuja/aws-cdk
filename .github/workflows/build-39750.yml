@@ -55,11 +55,13 @@ jobs:
         working-directory: packages/aws-cdk-lib
         run: yarn test aws-ec2 --coverage=false
 
-      - name: API compatibility (jsii-diff)
+      - name: API compatibility (jsii-diff, with the repo's allowed-breaking-changes.txt)
+        if: always()
         working-directory: packages/aws-cdk-lib
-        run: yarn compat
+        run: npx jsii-diff --keys --ignore-file ../../allowed-breaking-changes.txt npm:aws-cdk-lib
 
       - name: Rosetta (README snippets must compile)
+        if: always()
         working-directory: packages/aws-cdk-lib
         run: yarn rosetta:extract --strict
 
